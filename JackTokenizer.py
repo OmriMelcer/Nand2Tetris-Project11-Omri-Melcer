@@ -15,7 +15,7 @@ class JackTokenizer:
     # Jack Language Grammar
 
     A Jack file is a stream of characters. If the file represents a
-    valid program, it can be  tokenized into a stream of  tokens. The
+    valid program, it can be tokenized into a stream of  tokens. The
     tokens may be separated by an arbitrary number of whitesvalidpace characters, 
     and comments, which are ignored. There are three possible comment formats: 
     /* comment until closing */ , /** API comment until closing */ , and 
@@ -116,6 +116,7 @@ class JackTokenizer:
         self.ops = ['+', '-', '*', '/', '&', '|', '<', '>', '=', "&lt;", "&gt;", "&amp;"]
         self.lines_length = len(self.input_lines)
         self.current_line_tokens = []
+        self._in_block_comment = False
 
     def has_more_tokens(self) -> bool:
         """Do we have more tokens in the input?
@@ -163,6 +164,8 @@ class JackTokenizer:
                 self.current_line_tokens.append(char)
             elif char == '"':
                 closing_index = self.current_token.find('"', index + 1)
+                if closing_index == -1:
+                    closing_index = len(self.current_token) - 1
                 string_const = self.current_token[index:closing_index + 1]
                 self.current_line_tokens.append(string_const)
                 index = closing_index
@@ -206,10 +209,7 @@ class JackTokenizer:
             if not self.has_more_tokens():
                 return False
             self.current_token = self.input_lines[self.current_row_index]
-        self.delete_current_command()
-        self.current_row_index += 1
-        self.current_token = self.input_lines[self.current_row_index]
-        return True
+        return self.has_more_tokens()
 
     def handle_comments_and_blanks(self) -> bool:
         """Handles comments and blank lines in the input."""
@@ -226,19 +226,34 @@ class JackTokenizer:
             self.current_token = self.input_lines[self.current_row_index]
         return True
 
-    def _remove_comments_and_blanks(self, command: str) -> str:
-        """Removes comments and blank lines from the command.
+    def _remove_comments_and_blanks (self,line: str) -> str:
+        # Ensure this attribute exists in __init__: self._in_block_comment = False
+        in_block_comment = False
+        in_qutos_single = False
+        in_qutos_double = False
+        result = ""
+        i = 0
+        while i < len(line) - 2:
+            if line[i] == "'":
+                result += line[i:line.find("'", i + 1) + 1]
+                i = line.find("'", i + 1) + 1
+            elif line[i] == '"':
+                result += line[i:line.find('"', i + 1) + 1]
+                i = line.find('"', i + 1) + 1
+            elif line[i:i+2] == "//":
+                return result
+            elif line[i:i+2] == "/*" or line[i:i+3] == "/**":
+                closing_index = line.find("*/", i + 2)
+                if closing_index == -1:
+                    return result
+                i = line.find("*/", i + 2) + 2
+            else:
+                result += line[i]
+                i += 1
+        if i < len(line):
+            result += line[i:]
+        return result
 
-        Args:
-            command (str): the command to remove comments and blanks from.
-
-        Returns:
-            str: the command without comments.
-        """
-        if "//" in command:
-            return "".join(command.split("//")[0].strip())
-        return command
-    
     def token_type(self) -> str:
         
         """
