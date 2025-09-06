@@ -7,7 +7,8 @@ Unported [License](https://creativecommons.org/licenses/by-nc-sa/3.0/).
 """
 import typing
 from JackTokenizer import JackTokenizer
-
+from SymbolTable import SymbolTable
+from VMWriter import VMWriter
 class CompilationEngine:
     """
     Gets input from a JackTokenizer and emits its parsed structure into an
@@ -24,23 +25,25 @@ class CompilationEngine:
         self.input_stream = input_stream
         self.output_stream = output_stream
         self.current_type_processed = ""
+        self.vm_writer = VMWriter(output_stream)
+        self.symbol_table = SymbolTable()
+        self.if_else_counter = 0
+        self.while_counter = 0
+        self.class_name = ""
         self.compile_class()
 
     def compile_class(self) -> None:
         """Compiles a complete class."""
         # Your code goes here!
-        self.input_stream.advance()
-        self.output_stream.write("<class>\n")
-        self.output_stream.write(f"<keyword> {self.input_stream.keyword()} </keyword>\n")
-        self.input_stream.advance()
-        self.output_stream.write(f"<identifier> {self.input_stream.identifier()} </identifier>\n")
-        self.input_stream.advance()
-        self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n")
+        self.input_stream.advance() # class
+        self.input_stream.advance() # class name
+        self.class_name = self.input_stream.identifier()
+        self.input_stream.advance() # {
+        self.input_stream.advance() # class var dec
         self.compile_class_var_dec()
         self.compile_subroutine()
         #self.input_stream.advance() #TODO check if needed
-        self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n")
-        self.output_stream.write("</class>\n")
+        self.input_stream.advance() # }
 
     def compile_class_var_dec(self) -> None:
         """Compiles a static declaration or a field declaration."""
@@ -245,20 +248,60 @@ class CompilationEngine:
             self.input_stream.advance()
         self.output_stream.write("</ifStatement>\n")
 
+    # *VX 
     def compile_expression(self) -> None:
         """Compiles an expression.
         Should finish at the ) or ] or , token as current
         starts after advancing to the first token
         """
-        self.output_stream.write("<expression>\n")
         self.compile_term()
         while self.input_stream.token_type() == "SYMBOL" and self.input_stream.symbol() in self.input_stream.ops:
-            self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n")
+            operand = self.input_stream.symbol()
             self.input_stream.advance()
             self.compile_term()
-        self.output_stream.write("</expression>\n")
-        
+            self.handle_op(operand)
 
+   # *VX         
+    def handle_key_words(self, keyword: str) -> None:
+        if keyword == "true":
+            self.vm_writer.write_push("constant", 1)
+            self.vm_writer.write_arithmetic("neg")
+        elif keyword in ["false", "null"]:
+            self.vm_writer.write_push("constant", 0)
+        elif keyword == "this":
+                self.vm_writer.write_push("pointer", 0)
+            
+    def handle_op(self, operand: str) -> str:
+        if operand == "+":
+            self.vm_writer.write_arithmetic("add")
+        elif operand == "-":
+            self.vm_writer.write_arithmetic("sub")
+        elif operand == "*":
+            self.vm_writer.write_call("Math.multiply", 2)
+        elif operand == "/":
+            self.vm_writer.write_call("Math.divide", 2)
+        elif operand == "&":
+            self.vm_writer.write_arithmetic("and")
+        elif operand == "|":
+            self.vm_writer.write_arithmetic("or")
+        elif operand == "<":
+            self.vm_writer.write_arithmetic("lt")
+        elif operand == ">":
+            self.vm_writer.write_arithmetic("gt")
+        elif operand == "=":
+            self.vm_writer.write_arithmetic("eq")
+    
+    def handle_unary_op(self, unary_op: str) -> None:
+        if unary_op == "-":
+            self.vm_writer.write_arithmetic("neg")
+        elif unary_op == "~":
+            self.vm_writer.write_arithmetic("not")
+        elif unary_op == "^":
+            self.vm_writer.write_arithmetic("shiftLeft")
+        elif unary_op == "#":
+            self.vm_writer.write_arithmetic("shiftRight")
+
+    # *VX
     def compile_term(self) -> None:
         """Compiles a term. 
         the function starts with the current token as the first token of the term.
@@ -266,55 +309,72 @@ class CompilationEngine:
         This routine is faced with a slight difficulty when
         trying to decide between some of the alternative parsing rules.
         Specifically, if the current token is an identifier, the routing must
-        distinguish between a variable, an array entry, and a subroutine call.
+        distinguish between a variable, an array entry, and  a subroutine call.
         A single look-ahead token, which may be one of "[", "(", or "." suffices
         to distinguish between the three possibilities. Any other token is not
         part of this term and should not be advanced over.
         """
         first_token = ""
-        self.output_stream.write("<term>\n")
         if self.input_stream.token_type() == "INT_CONST":
-            self.output_stream.write(f"<integerConstant> {self.input_stream.int_val()} </integerConstant>\n") #integerConstant
+            self.vm_writer.write_push("constant", self.input_stream.int_val())
             self.input_stream.advance()
         elif self.input_stream.token_type() == "STRING_CONST":
-            self.output_stream.write(f"<stringConstant> {self.input_stream.string_val()} </stringConstant>\n") #stringConstant
+            self.handle_string_literal()
             self.input_stream.advance()
         elif self.input_stream.token_type() == "KEYWORD" and self.input_stream.keyword() in ["true", "false", "null", "this"]:
-            self.output_stream.write(f"<keyword> {self.input_stream.keyword()} </keyword>\n")  #keywordConstant
+            self.handle_key_words(self.input_stream.keyword())
             self.input_stream.advance()
         elif self.input_stream.token_type() == "SYMBOL" and self.input_stream.symbol() == "(":
-            self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n")
             self.input_stream.advance()
             self.compile_expression()
-            self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # )
+            # should return with the ')' sign that I'll advance over
             self.input_stream.advance()
         elif self.input_stream.token_type() == "SYMBOL" and self.input_stream.symbol() in self.input_stream.unaryOps:
-            self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n")
+            op = self.input_stream.symbol()
             self.input_stream.advance()
             self.compile_term()
-        else:
+            self.handle_unary_op(op)
+        else: # an identifier / subroutine call
             first_token = self.input_stream.identifier()
             self.input_stream.advance()
             if self.input_stream.token_type() == "SYMBOL" and self.input_stream.symbol() == "[":
-                self.output_stream.write(f"<identifier> {first_token} </identifier>\n")
-                self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # [
                 self.input_stream.advance()
-                self.compile_expression()
-                self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # ]
-                self.input_stream.advance()
+                self.push_array_entry(first_token, push_value=True)
             elif self.input_stream.token_type() == "SYMBOL" and self.input_stream.symbol() in ["(", "."]:
                 self.compile_subroutine_call(first_token = first_token)
             else:
-                self.output_stream.write(f"<identifier> {first_token} </identifier>\n")
-                
-        self.output_stream.write("</term>\n")
+                self.push_variable(first_token)
 
-    def compile_expression_list(self) -> None:
-        self.output_stream.write("<expressionList>\n")
-        while not (self.input_stream.token_type() == "SYMBOL" and self.input_stream.symbol() == ")"):
+
+    def push_array_entry(self, var_name: str, push_value: bool) -> None:
+        # recieves the array name as var_name, recieve the tokeneizer after the '[' returns it after the ']'
+        # pushes the value into the stack
+        self.push_variable(var_name)
+        self.compile_expression()
+        self.input_stream.advance() #over the ']'
+        self.vm_writer.write_arithmetic("add")
+        if push_value:
+            self.vm_writer.write_pop("pointer", 1)
+            self.vm_writer.write_push("that", 0)
+
+    def push_variable(self, var_name: str) -> None:
+        self.vm_writer.write_push(self.symbol_table.kind_of(var_name), self.symbol_table.index_of(var_name))
+
+    def handle_string_literal(self) -> None:
+        this_string = self.input_stream.string_val()
+        self.vm_writer.write_push("constant", len(this_string))
+        self.vm_writer.write_call("String.new", 1)
+        for char in this_string:
+            self.vm_writer.write_push("constant", ord(char))
+            self.vm_writer.write_call("String.append", 2)
+
+    # *VX
+    def compile_expression_list(self) -> int:
+        # this function ends up pushing into the stack all the expressions in the list inside a function call
+        num_expressions = 0
+        while not (self.input_stream.token_type () == "SYMBOL" and self.input_stream.symbol() == ")"):
             self.compile_expression()
+            num_expressions += 1
             if self.input_stream.token_type() == "SYMBOL" and self.input_stream.symbol() == ",":
-                self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n")
                 self.input_stream.advance()
-        self.output_stream.write("</expressionList>\n")
-        
+        return num_expressions
