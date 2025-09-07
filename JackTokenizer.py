@@ -300,12 +300,12 @@ class JackTokenizer:
             symbol: '{' | '}' | '(' | ')' | '[' | ']' | '.' | ',' | ';' | '+' | 
               '-' | '*' | '/' | '&' | '|' | '<' | '>' | '=' | '~' | '^' | '#'
         """
-        if self.current_token == "<":
-            return "&lt;"
-        if self.current_token == ">":
-            return "&gt;"
-        if self.current_token == "&":
-            return "&amp;"
+        # if self.current_token == "<":
+        #     return "&lt;"
+        # if self.current_token == ">":
+        #     return "&gt;"
+        # if self.current_token == "&":
+        #     return "&amp;"
         return self.current_token
 
     def identifier(self) -> str:

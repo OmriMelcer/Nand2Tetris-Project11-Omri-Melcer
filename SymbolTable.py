@@ -54,6 +54,16 @@ class SymbolTable:
             self.subroutine_scope[name] = {'type': type, 'kind': kind, 'index': self.indexes[kind]}
             self.indexes[kind] += 1
 
+    def is_var(self, name: str) -> bool:
+        """
+        Args:
+            name (str): name of an identifier.
+
+        Returns:
+            bool: whether the named identifier is known in the current scope.
+        """
+        return name in self.subroutine_scope or name in self.class_scope
+        
     def var_count(self, kind: str) -> int:
         """
         Args:
