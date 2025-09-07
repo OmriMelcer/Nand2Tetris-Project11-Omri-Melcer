@@ -129,7 +129,6 @@ class CompilationEngine:
         """Compiles a sequence of statements, not including the enclosing 
         "{}".
         """
-        self.output_stream.write("<statements>\n")
         while self.input_stream.token_type() == "KEYWORD" and self.input_stream.keyword() in ["let", "if", "while", "do", "return"]:
             if self.input_stream.keyword() == "let":
                 self.compile_let()
@@ -183,83 +182,81 @@ class CompilationEngine:
         self.vm_writer.write_call(function_call, arg_num)
         self.input_stream.advance()
 
-
     def compile_let(self) -> None:
         """Compiles a let statement."""
-        # Your code goes here!
-        self.input_stream.advance() #let -> where to push
-        first_identifier = self.input_stream.identifier()
-        self.input_stream.advance()
-        self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # = or [
-        if self.input_stream.symbol() == "[":
-            self.input_stream.advance()
-            self.compile_expression() #TODO: should finish after the advancing to the ] token
-            self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # ]
-            self.input_stream.advance()
-            self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # =
-        self.input_stream.advance()
+        # current token is 'let'
+        self.input_stream.advance()  # let -> varName
+        var_name = self.input_stream.identifier()
+        self.input_stream.advance()  # varName -> '=' or '['
+        is_array = self.input_stream.token_type() == "SYMBOL" and self.input_stream.symbol() == "["
+        if is_array:
+            self.input_stream.advance()  # '[' -> first token of index expression
+            # leaves (base + index) on stack, and current at '='
+            self.push_array_entry(var_name, push_value=False)
+        self.input_stream.advance()  # '=' -> first token of RHS expression
         self.compile_expression()
-        self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # ;
-        self.input_stream.advance()
-        self.output_stream.write("</letStatement>\n")
+        if is_array:
+            self.vm_writer.write_pop('temp', 0)
+            self.vm_writer.write_pop('pointer', 1)
+            self.vm_writer.write_push('temp', 0)
+            self.vm_writer.write_pop('that', 0)
+        else:
+            # Simple var assignment
+            self.pop_variable(var_name)
+        self.input_stream.advance()  # ';' -> next token
 
     def compile_while(self) -> None:
         """Compiles a while statement.
             receive it with current token as 'while'
             returns it with current token as the after }
         """
-        self.output_stream.write("<whileStatement>\n")
-        self.output_stream.write(f"<keyword> {self.input_stream.keyword()} </keyword>\n") #while
-        self.input_stream.advance()
-        self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # (
-        self.input_stream.advance()
+        self.input_stream.advance() # while -> (
+        label_while_start = f"WHILE_EXP_{self.while_counter}"
+        label_while_end = f"WHILE_END_{self.while_counter}"
+        self.while_counter += 1
+        self.vm_writer.write_label(label_while_start)
+        self.input_stream.advance() # ( -> first token of condition expression
         self.compile_expression()
-        self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # )
-        self.input_stream.advance()
-        self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # {
-        self.input_stream.advance()
+        self.vm_writer.write_arithmetic('not')
+        self.vm_writer.write_if(label_while_end)
+        self.input_stream.advance() # ) -> {
+        self.input_stream.advance() # { -> first token of statements
         self.compile_statements()
-        self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # }
-        self.input_stream.advance()
-        self.output_stream.write("</whileStatement>\n")
+        self.vm_writer.write_goto(label_while_start)
+        self.input_stream.advance() # } -> next token
+        self.vm_writer.write_label(label_while_end)
 
     def compile_return(self) -> None:
         """Compiles a return statement."""
-        self.output_stream.write("<returnStatement>\n")
-        self.output_stream.write(f"<keyword> {self.input_stream.keyword()} </keyword>\n") #return
-        self.input_stream.advance()
+        self.input_stream.advance() # return -> expression or ;
         if not (self.input_stream.token_type() == "SYMBOL" and self.input_stream.symbol() == ";"):
             self.compile_expression()
-        self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # ;
         self.input_stream.advance()
-        self.output_stream.write("</returnStatement>\n")
-
+    #VX
     def compile_if(self) -> None:
         """Compiles a if statement, possibly with a trailing else clause."""
         # Your code goes here!
-        self.output_stream.write("<ifStatement>\n")
-        self.output_stream.write(f"<keyword> {self.input_stream.keyword()} </keyword>\n") #if
-        self.input_stream.advance()
-        self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # (
-        self.input_stream.advance()
+        self.input_stream.advance() # if -> (
+        self.input_stream.advance() # ( -> first token of condition expression
+        label_if_true = f"IF_TRUE_{self.if_else_counter}"
+        label_if_false = f"IF_FALSE_{self.if_else_counter}"
+        self.if_else_counter += 1
         self.compile_expression()
-        self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # )
-        self.input_stream.advance()
-        self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # {
-        self.input_stream.advance()
+        self.vm_writer.write_arithmetic('not')
+        self.vm_writer.write_if(label_if_false)
+        self.input_stream.advance() # ) -> {
+        self.input_stream.advance() # { -> first token of statements
         self.compile_statements()
-        self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # }
-        self.input_stream.advance()
+        self.input_stream.advance() # } -> next token
+        self.vm_writer.write_goto(label_if_true)
+        self.vm_writer.write_label(label_if_false)
         # Optional else clause
         if self.input_stream.keyword() == "else":
-            self.output_stream.write(f"<keyword> {self.input_stream.keyword()} </keyword>\n") # else
-            self.input_stream.advance()
-            self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # {
-            self.input_stream.advance()
+            self.input_stream.advance() # else -> {
+            self.input_stream.advance() # { -> first token of statements
             self.compile_statements()
-            self.output_stream.write(f"<symbol> {self.input_stream.symbol()} </symbol>\n") # }
-            self.input_stream.advance()
-        self.output_stream.write("</ifStatement>\n")
+            self.input_stream.advance() # } -> next token
+        self.vm_writer.write_label(label_if_true)
 
     # *VX 
     def compile_expression(self) -> None:
@@ -372,6 +369,9 @@ class CompilationEngine:
 
     def push_variable(self, var_name: str) -> None:
         self.vm_writer.write_push(self.symbol_table.kind_of(var_name), self.symbol_table.index_of(var_name))
+
+    def pop_variable(self, var_name: str) -> None:
+        self.vm_writer.write_pop(self.symbol_table.kind_of(var_name), self.symbol_table.index_of(var_name))
 
     def handle_string_literal(self) -> None:
         this_string = self.input_stream.string_val()
