@@ -149,6 +149,7 @@ class CompilationEngine:
         # Your code goes here!
         self.input_stream.advance() #do to subroutine call
         self.compile_subroutine_call()
+        self.vm_writer.write_pop('temp', 1) # pop the return value of the function into temp 1, as do functions don't return anything
         self.input_stream.advance() # ; after the subroutine call
 
     def compile_subroutine_call(self, first_token: str = "") -> None:
@@ -169,13 +170,13 @@ class CompilationEngine:
         arg_num = 0
         class_of_var = ""
         if second_token != "":
-            if self.symbol_table.is_var(first_token):
+            if self.symbol_table.is_var(first_token): #variable.method call
                 self.push_variable(first_token)
                 arg_num += 1
                 class_of_var = f"{self.symbol_table.type_of(first_token)}."
             else:
-                class_of_var = f"{first_token}."
-        else:
+                class_of_var = f"{first_token}." #some class.function call
+        else: #method call
             second_token = first_token
             self.vm_writer.write_push("pointer", 0)
             arg_num += 1
