@@ -10,9 +10,9 @@ wheels/
 .venv
 
 # project_stuff
-.*zip
-.*vm
-.*jack
-.*vs
+*.zip
+*.vm
+*.jack
+*.vs
 *.sh
 *.bat
