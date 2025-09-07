@@ -41,6 +41,22 @@
 all:
 	chmod a+x *
 
+.PHONY: compile-all zip
+
+# Compile all subdirectories that contain .jack files using JackCompiler.py
+compile-all:
+	@set -e; \
+	for d in */ ; do \
+		if ls "$$d"/*.jack >/dev/null 2>&1 ; then \
+			echo "Compiling $$d"; \
+			python3 JackCompiler.py "$$d"; \
+		fi; \
+	done
+
+# Create a zip with all Python files, the Makefile, AUTHORS, and the JackCompiler executable
+zip:
+	zip -9 project10.zip *.py Makefile AUTHORS JackCompiler
+
 # This file is part of nand2tetris, as taught in The Hebrew University, and 
 # was written by Aviv Yaish. It is an extension to the specifications given
 # in https://www.nand2tetris.org (Shimon Schocken and Noam Nisan, 2017),

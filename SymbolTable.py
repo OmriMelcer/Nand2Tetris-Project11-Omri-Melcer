@@ -25,7 +25,12 @@ class SymbolTable:
             'ARG': 0,
             'VAR': 0
         }
-        
+        self.translation = {
+            'VAR': 'local',
+            'ARG': 'argument',
+            'FIELD': 'this',
+            'STATIC': 'static'
+        }
     def start_subroutine(self) -> None:
         """Starts a new subroutine scope (i.e., resets the subroutine's 
         symbol table).
@@ -86,17 +91,16 @@ class SymbolTable:
         """
         # Your code goes here!
         if name in self.subroutine_scope:
-            return self.subroutine_scope[name]['kind']
+            return self.translation[self.subroutine_scope[name]['kind']]
         elif name in self.class_scope:
-            return self.class_scope[name]['kind']
+            return self.translation[self.class_scope[name]['kind']]
         else:
-            return 'subroutine'
+            return None
 
     def type_of(self, name: str) -> str:
         """
         Args:
             name (str):  name of an identifier.
-
         Returns:
             str: the type of the named identifier in the current scope.
         """

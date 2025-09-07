@@ -25,7 +25,8 @@ def compile_file(
     # Your code goes here!
     # This function should be relatively similar to "analyze_file" in
     # JackAnalyzer.py from the previous project.
-    pass
+    tokenizer = JackTokenizer(input_file)
+    compilation_engine = CompilationEngine(tokenizer, output_file)
 
 
 if "__main__" == __name__:

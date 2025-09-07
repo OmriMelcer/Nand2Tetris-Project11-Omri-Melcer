@@ -40,6 +40,7 @@ class CompilationEngine:
         self.class_name = self.input_stream.identifier()
         self.input_stream.advance() # {
         self.input_stream.advance() # class var dec
+        # if self.input_stream.token_type() == "KEYWORD" and self.input_stream.keyword() in ["static", "field"]:
         self.compile_class_var_dec()
         self.compile_subroutine()
         #self.input_stream.advance() #TODO check if needed
@@ -51,7 +52,6 @@ class CompilationEngine:
 
     # VX
     def compile_all_vars_in_dec(self, is_class_var_dec: bool) -> int:
-        self.input_stream.advance()
         type_of_var = "classVarDec" if is_class_var_dec else "varDec"
         lst_to_be_in = ["static", "field"] if is_class_var_dec else ['var']
         while self.input_stream.token_type() == "KEYWORD" and self.input_stream.keyword() in lst_to_be_in:
@@ -102,8 +102,8 @@ class CompilationEngine:
                 self.vm_writer.write_call("Memory.alloc", 1)
                 self.vm_writer.write_pop("pointer", 0)
             self.compile_statements()
-            if function_type_is_void:
-                self.vm_writer.write_push("constant", 0)
+            # if function_type_is_void:
+            #     self.vm_writer.write_push("constant", 0)
             self.input_stream.advance() #
 
     def compile_parameter_list(self) -> None:
@@ -142,7 +142,6 @@ class CompilationEngine:
                 self.compile_return()
             # TODO: check if advanced is need here.
             # self.input_stream.advance()
-        self.output_stream.write("</statements>\n")
 
     def compile_do(self) -> None:
         """Compiles a do statement."""
@@ -231,6 +230,9 @@ class CompilationEngine:
         self.input_stream.advance() # return -> expression or ;
         if not (self.input_stream.token_type() == "SYMBOL" and self.input_stream.symbol() == ";"):
             self.compile_expression()
+        else:
+            self.vm_writer.write_push("constant", 0)
+        self.vm_writer.write_return()
         self.input_stream.advance()
     #VX
     def compile_if(self) -> None:
@@ -379,7 +381,7 @@ class CompilationEngine:
         self.vm_writer.write_call("String.new", 1)
         for char in this_string:
             self.vm_writer.write_push("constant", ord(char))
-            self.vm_writer.write_call("String.append", 2)
+            self.vm_writer.write_call("String.appendChar", 2)
 
     # *VX
     def compile_expression_list(self) -> int:
