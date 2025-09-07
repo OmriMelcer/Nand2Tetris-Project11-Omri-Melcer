@@ -55,7 +55,7 @@ compile-all:
 
 # Create a zip with all Python files, the Makefile, AUTHORS, and the JackCompiler executable
 zip:
-	zip -9 project10.zip *.py Makefile AUTHORS JackCompiler
+	zip -9 project11.zip *.py Makefile AUTHORS JackCompiler
 
 # This file is part of nand2tetris, as taught in The Hebrew University, and 
 # was written by Aviv Yaish. It is an extension to the specifications given
