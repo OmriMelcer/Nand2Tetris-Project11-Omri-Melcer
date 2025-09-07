@@ -14,6 +14,9 @@ class CompilationEngine:
     Gets input from a JackTokenizer and emits its parsed structure into an
     output stream.
     """
+    # Static counters shared across all instances/files
+    _if_else_counter = 0
+    _while_counter = 0
 
     def __init__(self, input_stream: JackTokenizer, output_stream) -> None:
         """
@@ -27,8 +30,6 @@ class CompilationEngine:
         self.current_type_processed = ""
         self.vm_writer = VMWriter(output_stream)
         self.symbol_table = SymbolTable()
-        self.if_else_counter = 0
-        self.while_counter = 0
         self.class_name = ""
         self.compile_class()
 
@@ -176,6 +177,9 @@ class CompilationEngine:
                 class_of_var = f"{first_token}."
         else:
             second_token = first_token
+            self.vm_writer.write_push("pointer", 0)
+            arg_num += 1
+            class_of_var = f"{self.class_name}."
         arg_num += self.compile_expression_list()
         function_call = class_of_var + second_token
         self.vm_writer.write_call(function_call, arg_num)
@@ -210,9 +214,9 @@ class CompilationEngine:
             returns it with current token as the after }
         """
         self.input_stream.advance() # while -> (
-        label_while_start = f"WHILE_EXP_{self.while_counter}"
-        label_while_end = f"WHILE_END_{self.while_counter}"
-        self.while_counter += 1
+        label_while_start = f"WHILE_EXP_{CompilationEngine._while_counter}"
+        label_while_end = f"WHILE_END_{CompilationEngine._while_counter}"
+        CompilationEngine._while_counter += 1
         self.vm_writer.write_label(label_while_start)
         self.input_stream.advance() # ( -> first token of condition expression
         self.compile_expression()
@@ -240,9 +244,9 @@ class CompilationEngine:
         # Your code goes here!
         self.input_stream.advance() # if -> (
         self.input_stream.advance() # ( -> first token of condition expression
-        label_if_true = f"IF_TRUE_{self.if_else_counter}"
-        label_if_false = f"IF_FALSE_{self.if_else_counter}"
-        self.if_else_counter += 1
+        label_if_true = f"IF_TRUE_{CompilationEngine._if_else_counter}"
+        label_if_false = f"IF_FALSE_{CompilationEngine._if_else_counter}"
+        CompilationEngine._if_else_counter += 1
         self.compile_expression()
         self.vm_writer.write_arithmetic('not')
         self.vm_writer.write_if(label_if_false)
